@@ -140,7 +140,7 @@ CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` FUNCTION `fn_MySQLversionNumeric`(
 BEGIN
     DECLARE v_setMySQLversion VARCHAR(8);
     DECLARE v_MySQLversion MEDIUMINT(8) UNSIGNED;
-    SELECT REPLACE(VERSION(), '-log', '') INTO v_setMySQLversion;
+    SELECT SUBSTRING_INDEX(VERSION(), '-', 1) INTO v_setMySQLversion;
     SELECT SUBSTRING_INDEX(v_setMySQLversion, '.', 1) into @v_MySQLversionMajor;
     SELECT CAST(REPLACE(SUBSTRING_INDEX(v_setMySQLversion, '.', 2), CONCAT(@v_MySQLversionMajor, '.'), '') AS UNSIGNED) into @v_MySQLversionMinor;
     SELECT CAST(SUBSTRING_INDEX(v_setMySQLversion, '.', -1) AS UNSIGNED) into @v_MySQLversionThird;
