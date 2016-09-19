@@ -100,10 +100,10 @@ CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` FUNCTION `fn_MySQLversionNumeric`(
 BEGIN
 	DECLARE v_setMySQLversion VARCHAR(8);
 	DECLARE v_MySQLversion MEDIUMINT(8) UNSIGNED;
-	SELECT REPLACE(REPLACE(VERSION(), '.', ','), '-log', '') INTO v_setMySQLversion;
-	SELECT SUBSTRING_INDEX(@v_setMySQLversion, '.', 1) into @v_MySQLversionMajor;
-	SELECT CAST(REPLACE(SUBSTRING_INDEX(@v_setMySQLversion, '.', 2), CONCAT(@v_MySQLversionMajor, '.'), '') AS UNSIGNED) into @v_MySQLversionMinor;
-	SELECT CAST(SUBSTRING_INDEX(@v_setMySQLversion, '.', -1) AS UNSIGNED) into @v_MySQLversionThird;
+	SELECT REPLACE(VERSION(), '-log', '') INTO v_setMySQLversion;
+	SELECT SUBSTRING_INDEX(v_setMySQLversion, '.', 1) into @v_MySQLversionMajor;
+	SELECT CAST(REPLACE(SUBSTRING_INDEX(v_setMySQLversion, '.', 2), CONCAT(@v_MySQLversionMajor, '.'), '') AS UNSIGNED) into @v_MySQLversionMinor;
+	SELECT CAST(SUBSTRING_INDEX(v_setMySQLversion, '.', -1) AS UNSIGNED) into @v_MySQLversionThird;
 	SELECT CAST(CONCAT(@v_MySQLversionMajor, (CASE WHEN (@v_MySQLversionMinor < 10) THEN "0" ELSE "" END), @v_MySQLversionMinor, (CASE WHEN (@v_MySQLversionThird < 10) THEN "0" ELSE "" END), @v_MySQLversionThird) AS UNSIGNED) INTO v_MySQLversion;
     RETURN v_MySQLversion;
 END//
