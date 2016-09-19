@@ -93,10 +93,10 @@ CREATE TABLE IF NOT EXISTS `auto_increment_health_evaluation` (
 DELIMITER //
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_Min`//
 CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_Min`(IN `p_TableSchema` VARCHAR(64), IN `p_TableName` VARCHAR(64), IN `p_ColumnName` VARCHAR(64), OUT `p_MinAutoIncrement` BIGINT(21))
-	NOT DETERMINISTIC 
-	READS SQL DATA 
-	SQL SECURITY DEFINER 
-	COMMENT 'AI evaluation for minimum value'
+    NOT DETERMINISTIC 
+    READS SQL DATA 
+    SQL SECURITY DEFINER 
+    COMMENT 'AI evaluation for minimum value'
 BEGIN
     SET @dynamic_sql_min = CONCAT("SET @v_Min_Auto_Increment = (SELECT MIN(`", p_ColumnName, "`) FROM `", p_TableSchema, "`.`", p_TableName, "`);");
     PREPARE complete_min_sql FROM @dynamic_sql_min;
@@ -106,10 +106,10 @@ BEGIN
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_Max`//
 CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_Max`(IN `p_TableSchema` VARCHAR(64), IN `p_TableName` VARCHAR(64), IN `p_ColumnName` VARCHAR(64), OUT `p_MaxAutoIncrement` BIGINT(20) UNSIGNED)
-	NOT DETERMINISTIC 
-	READS SQL DATA 
-	SQL SECURITY DEFINER 
-	COMMENT 'AI evaluation for maximum value' 
+    NOT DETERMINISTIC 
+    READS SQL DATA 
+    SQL SECURITY DEFINER 
+    COMMENT 'AI evaluation for maximum value' 
 BEGIN
     SET @dynamic_sql = CONCAT("SET @v_Max_Auto_Increment = (SELECT MAX(`", p_ColumnName, "`) FROM `", p_TableSchema, "`.`", p_TableName, "`);");
     PREPARE complete_max_sql FROM @dynamic_sql;
@@ -119,10 +119,10 @@ BEGIN
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_Records`//
 CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_Records`(IN `p_TableSchema` VARCHAR(64), IN `p_TableName` VARCHAR(64), IN `p_ColumnName` VARCHAR(64), OUT `p_Record_Count` BIGINT(20) UNSIGNED)
-	NOT DETERMINISTIC 
-	READS SQL DATA 
-	SQL SECURITY DEFINER 
-	COMMENT 'Record count evaluation of tables with AI column' 
+    NOT DETERMINISTIC 
+    READS SQL DATA 
+    SQL SECURITY DEFINER 
+    COMMENT 'Record count evaluation of tables with AI column' 
 BEGIN
     SET @dynamic_sql_records = CONCAT("SET @v_Record_Count = (SELECT COUNT(*) FROM `", p_TableSchema, "`.`", p_TableName, "`);");
     PREPARE complete_records_sql FROM @dynamic_sql_records;
@@ -132,80 +132,80 @@ BEGIN
 END//
 DROP FUNCTION IF EXISTS `fn_MySQLversionNumeric`//
 CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` FUNCTION `fn_MySQLversionNumeric`() RETURNS MEDIUMINT(8) UNSIGNED
-	DETERMINISTIC 
-	CONTAINS SQL 
-	SQL SECURITY DEFINER 
-	COMMENT 'Returns current MySQL version as a number w/ 5 digits'
+    DETERMINISTIC 
+    CONTAINS SQL 
+    SQL SECURITY DEFINER 
+    COMMENT 'Returns current MySQL version as a number w/ 5 digits'
 BEGIN
-	DECLARE v_setMySQLversion VARCHAR(8);
-	DECLARE v_MySQLversion MEDIUMINT(8) UNSIGNED;
-	SELECT REPLACE(VERSION(), '-log', '') INTO v_setMySQLversion;
-	SELECT SUBSTRING_INDEX(v_setMySQLversion, '.', 1) into @v_MySQLversionMajor;
-	SELECT CAST(REPLACE(SUBSTRING_INDEX(v_setMySQLversion, '.', 2), CONCAT(@v_MySQLversionMajor, '.'), '') AS UNSIGNED) into @v_MySQLversionMinor;
-	SELECT CAST(SUBSTRING_INDEX(v_setMySQLversion, '.', -1) AS UNSIGNED) into @v_MySQLversionThird;
-	SELECT CAST(CONCAT(@v_MySQLversionMajor, (CASE WHEN (@v_MySQLversionMinor < 10) THEN "0" ELSE "" END), @v_MySQLversionMinor, (CASE WHEN (@v_MySQLversionThird < 10) THEN "0" ELSE "" END), @v_MySQLversionThird) AS UNSIGNED) INTO v_MySQLversion;
+    DECLARE v_setMySQLversion VARCHAR(8);
+    DECLARE v_MySQLversion MEDIUMINT(8) UNSIGNED;
+    SELECT REPLACE(VERSION(), '-log', '') INTO v_setMySQLversion;
+    SELECT SUBSTRING_INDEX(v_setMySQLversion, '.', 1) into @v_MySQLversionMajor;
+    SELECT CAST(REPLACE(SUBSTRING_INDEX(v_setMySQLversion, '.', 2), CONCAT(@v_MySQLversionMajor, '.'), '') AS UNSIGNED) into @v_MySQLversionMinor;
+    SELECT CAST(SUBSTRING_INDEX(v_setMySQLversion, '.', -1) AS UNSIGNED) into @v_MySQLversionThird;
+    SELECT CAST(CONCAT(@v_MySQLversionMajor, (CASE WHEN (@v_MySQLversionMinor < 10) THEN "0" ELSE "" END), @v_MySQLversionMinor, (CASE WHEN (@v_MySQLversionThird < 10) THEN "0" ELSE "" END), @v_MySQLversionThird) AS UNSIGNED) INTO v_MySQLversion;
     RETURN v_MySQLversion;
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_1_Capture`//
 CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_1_Capture`()
-	NOT DETERMINISTIC 
-	MODIFIES SQL DATA 
-	SQL SECURITY DEFINER 
-	COMMENT 'Adds AI columns from all schemas' 
+    NOT DETERMINISTIC 
+    MODIFIES SQL DATA 
+    SQL SECURITY DEFINER 
+    COMMENT 'Adds AI columns from all schemas' 
 BEGIN
-	/* Ensure we're starting in an empty space */
-	TRUNCATE TABLE `auto_increment_health_evaluation`;
-	/* Capture all AI column from all databases on current MySQL server */
+    /* Ensure we're starting in an empty space */
+    TRUNCATE TABLE `auto_increment_health_evaluation`;
+    /* Capture all AI column from all databases on current MySQL server */
     INSERT INTO `auto_increment_health_evaluation` (`table_schema`, `table_name`, `column_name`, `data_type`, `column_type`, `auto_increment_next_value`)
-		SELECT 
-			`C`.`TABLE_SCHEMA`, 
-			`C`.`TABLE_NAME`, 
-			`C`.`COLUMN_NAME`, 
-			`C`.`DATA_TYPE`, 
-			`C`.`COLUMN_TYPE`,
-			`T`.`AUTO_INCREMENT`
-		FROM `information_schema`.`COLUMNS` `C`
-		INNER JOIN `information_schema`.`TABLES` `T` ON ((`C`.`TABLE_SCHEMA` = `T`.`TABLE_SCHEMA`) AND (`C`.`TABLE_NAME` = `T`.`TABLE_NAME`))
-		WHERE (`C`.`EXTRA` LIKE 'auto_increment')
-		GROUP BY `C`.`TABLE_SCHEMA`, `C`.`TABLE_NAME`, `C`.`COLUMN_NAME`
-		ORDER BY `C`.`TABLE_SCHEMA`, `C`.`TABLE_NAME`, `C`.`COLUMN_NAME`;
-	/* Calculates few columns for MySQL older than 5.7.6 which does not support generated columns */
-	IF (`fn_MySQLversionNumeric`() < 50706) THEN
-		UPDATE `auto_increment_health_evaluation` SET
-			`min_possible` = (
-				CASE
-					WHEN (LOCATE('unsigned', `column_type`) != 0) THEN 0
-					WHEN (LOCATE('unsigned', `column_type`) = 0) THEN (CASE
-						WHEN (`data_type` = 'tinyint') THEN -(128) 
-						WHEN (`data_type` = 'smallint') THEN -(32768) 
-						WHEN (`data_type` = 'mediumint') THEN -(8388608) 
-						WHEN (`data_type` = 'int') THEN -(2147483648) 
-						WHEN (`data_type` = 'bigint') THEN -(9223372036854775808) 
-						ELSE NULL
-					END)
-			END), 
-			`max_possible` = (
-				CASE 
-					WHEN ((`data_type` = 'tinyint') AND (LOCATE('unsigned', `column_type`) = 0)) THEN 127
-					WHEN ((`data_type` = 'tinyint') AND (LOCATE('unsigned', `column_type`) != 0)) THEN 255
-					WHEN ((`data_type` = 'smallint') AND (LOCATE('unsigned', `column_type`) = 0)) THEN 32767
-					WHEN ((`data_type` = 'smallint') AND (LOCATE('unsigned', `column_type`) != 0)) THEN 65535
-					WHEN ((`data_type` = 'mediumint') AND (LOCATE('unsigned', `column_type`) = 0)) THEN 8388607
-					WHEN ((`data_type` = 'mediumint') AND (LOCATE('unsigned', `column_type`) != 0)) THEN 16777215
-					WHEN ((`data_type` = 'int') AND (LOCATE('unsigned', `column_type`) = 0)) THEN 2147483647
-					WHEN ((`data_type` = 'int') AND (LOCATE('unsigned', `column_type`) != 0)) THEN 4294967295
-					WHEN ((`data_type` = 'bigint') AND (LOCATE('unsigned', `column_type`) = 0)) THEN 9223372036854775807
-					WHEN ((`data_type` = 'bigint') AND (LOCATE('unsigned', `column_type`) != 0)) THEN 18446744073709551615
-					ELSE 1
-			END);
-	END IF;
+        SELECT 
+            `C`.`TABLE_SCHEMA`, 
+            `C`.`TABLE_NAME`, 
+            `C`.`COLUMN_NAME`, 
+            `C`.`DATA_TYPE`, 
+            `C`.`COLUMN_TYPE`,
+            `T`.`AUTO_INCREMENT`
+        FROM `information_schema`.`COLUMNS` `C`
+        INNER JOIN `information_schema`.`TABLES` `T` ON ((`C`.`TABLE_SCHEMA` = `T`.`TABLE_SCHEMA`) AND (`C`.`TABLE_NAME` = `T`.`TABLE_NAME`))
+        WHERE (`C`.`EXTRA` LIKE 'auto_increment')
+        GROUP BY `C`.`TABLE_SCHEMA`, `C`.`TABLE_NAME`, `C`.`COLUMN_NAME`
+        ORDER BY `C`.`TABLE_SCHEMA`, `C`.`TABLE_NAME`, `C`.`COLUMN_NAME`;
+    /* Calculates few columns for MySQL older than 5.7.6 which does not support generated columns */
+    IF (`fn_MySQLversionNumeric`() < 50706) THEN
+        UPDATE `auto_increment_health_evaluation` SET
+            `min_possible` = (
+                CASE
+                    WHEN (LOCATE('unsigned', `column_type`) != 0) THEN 0
+                    WHEN (LOCATE('unsigned', `column_type`) = 0) THEN (CASE
+                        WHEN (`data_type` = 'tinyint') THEN -(128) 
+                        WHEN (`data_type` = 'smallint') THEN -(32768) 
+                        WHEN (`data_type` = 'mediumint') THEN -(8388608) 
+                        WHEN (`data_type` = 'int') THEN -(2147483648) 
+                        WHEN (`data_type` = 'bigint') THEN -(9223372036854775808) 
+                        ELSE NULL
+                    END)
+            END), 
+            `max_possible` = (
+                CASE 
+                    WHEN ((`data_type` = 'tinyint') AND (LOCATE('unsigned', `column_type`) = 0)) THEN 127
+                    WHEN ((`data_type` = 'tinyint') AND (LOCATE('unsigned', `column_type`) != 0)) THEN 255
+                    WHEN ((`data_type` = 'smallint') AND (LOCATE('unsigned', `column_type`) = 0)) THEN 32767
+                    WHEN ((`data_type` = 'smallint') AND (LOCATE('unsigned', `column_type`) != 0)) THEN 65535
+                    WHEN ((`data_type` = 'mediumint') AND (LOCATE('unsigned', `column_type`) = 0)) THEN 8388607
+                    WHEN ((`data_type` = 'mediumint') AND (LOCATE('unsigned', `column_type`) != 0)) THEN 16777215
+                    WHEN ((`data_type` = 'int') AND (LOCATE('unsigned', `column_type`) = 0)) THEN 2147483647
+                    WHEN ((`data_type` = 'int') AND (LOCATE('unsigned', `column_type`) != 0)) THEN 4294967295
+                    WHEN ((`data_type` = 'bigint') AND (LOCATE('unsigned', `column_type`) = 0)) THEN 9223372036854775807
+                    WHEN ((`data_type` = 'bigint') AND (LOCATE('unsigned', `column_type`) != 0)) THEN 18446744073709551615
+                    ELSE 1
+            END);
+    END IF;
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_2_Health`//
 CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_2_Health`()
-	NOT DETERMINISTIC 
-	MODIFIES SQL DATA 
-	SQL SECURITY DEFINER 
-	COMMENT 'AI evaluation'
+    NOT DETERMINISTIC 
+    MODIFIES SQL DATA 
+    SQL SECURITY DEFINER 
+    COMMENT 'AI evaluation'
 BEGIN
     DECLARE v_done INT DEFAULT 0;
     DECLARE v_table_schema VARCHAR(64);
@@ -214,12 +214,12 @@ BEGIN
     DECLARE v_Min_Evaluated BIGINT(21);
     DECLARE v_Max_Evaluated BIGINT(20) UNSIGNED;
     DECLARE v_Record_Count_Evaluated BIGINT(20) UNSIGNED;
-	/* Reads existing AI columns to later evaluate 1 by 1 */
+    /* Reads existing AI columns to later evaluate 1 by 1 */
     DECLARE info_cursor CURSOR FOR SELECT `table_schema`, `table_name`, `column_name` FROM `auto_increment_health_evaluation`;
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_done = 1;
-	/* Evaluate current situation for every single relevant column and table */
+    /* Evaluate current situation for every single relevant column and table */
     SET @dynamic_sql = "UPDATE `auto_increment_health_evaluation` SET `min_evaluated` = ?, `max_evaluated` = ?, `record_count_evaluated` = ? WHERE (`table_schema` = ?) AND (`table_name` = ?) AND (`column_name` = ?);";
-	PREPARE complete_sql FROM @dynamic_sql;
+    PREPARE complete_sql FROM @dynamic_sql;
     OPEN info_cursor;
     REPEAT
         FETCH info_cursor INTO v_table_schema, v_table_name, v_column_name;
@@ -241,122 +241,122 @@ BEGIN
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_3_Calculate`//
 CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_3_Calculate`()
-	NOT DETERMINISTIC 
-	MODIFIES SQL DATA 
-	SQL SECURITY DEFINER 
-	COMMENT 'Calculates few columns for MySQL older than 5.7.6 which does not support generated columns' 
+    NOT DETERMINISTIC 
+    MODIFIES SQL DATA 
+    SQL SECURITY DEFINER 
+    COMMENT 'Calculates few columns for MySQL older than 5.7.6 which does not support generated columns' 
 BEGIN
-	IF (`fn_MySQLversionNumeric`() < 50706) THEN
-		UPDATE `auto_increment_health_evaluation` SET 
-			`calculated_filling_value` = (
-				CASE 
-					WHEN (`record_count_evaluated` IS NULL) THEN NULL 
+    IF (`fn_MySQLversionNumeric`() < 50706) THEN
+        UPDATE `auto_increment_health_evaluation` SET 
+            `calculated_filling_value` = (
+                CASE 
+                    WHEN (`record_count_evaluated` IS NULL) THEN NULL 
                     WHEN (`record_count_evaluated` = 0) THEN 0 
                     ELSE (`auto_increment_next_value` - IFNULL(NULLIF((`max_evaluated` - `min_evaluated`),0),1))
             END),
-			`calculated_start_gap_value` = (
-				CASE 
-					WHEN (`record_count_evaluated` IS NULL) THEN NULL 
-					WHEN (`record_count_evaluated` = 0) THEN 0 
-					ELSE ((`min_evaluated` - (CASE WHEN `min_evaluated` = 0 THEN 0 ELSE 1 END)) - `min_possible`) 
-			END),
+            `calculated_start_gap_value` = (
+                CASE 
+                    WHEN (`record_count_evaluated` IS NULL) THEN NULL 
+                    WHEN (`record_count_evaluated` = 0) THEN 0 
+                    ELSE ((`min_evaluated` - (CASE WHEN `min_evaluated` = 0 THEN 0 ELSE 1 END)) - `min_possible`) 
+            END),
             `calculated_continuity_gap_value` = (
-				CASE 
-					WHEN (`record_count_evaluated` is null) THEN null 
-					WHEN (`record_count_evaluated` = 0) THEN 0 
-					ELSE (((`max_evaluated` - `min_evaluated`) + 1) - `record_count_evaluated`)
-			END),
-			`calculated_end_gap_value` = (
-				CASE 
-					WHEN (`record_count_evaluated` is null) THEN null 
-					WHEN (`record_count_evaluated` = 0) THEN 0 
-					ELSE ((`auto_increment_next_value` - (CASE WHEN (`auto_increment_next_value` = `max_evaluated`) THEN 0 ELSE 1 END)) - `max_evaluated`)
-			END);
-		UPDATE `auto_increment_health_evaluation` SET 
-			`calculated_filling_percentage` = (
-				CASE 
-					WHEN (`record_count_evaluated` IS NULL) THEN NULL 
+                CASE 
+                    WHEN (`record_count_evaluated` is null) THEN null 
+                    WHEN (`record_count_evaluated` = 0) THEN 0 
+                    ELSE (((`max_evaluated` - `min_evaluated`) + 1) - `record_count_evaluated`)
+            END),
+            `calculated_end_gap_value` = (
+                CASE 
+                    WHEN (`record_count_evaluated` is null) THEN null 
+                    WHEN (`record_count_evaluated` = 0) THEN 0 
+                    ELSE ((`auto_increment_next_value` - (CASE WHEN (`auto_increment_next_value` = `max_evaluated`) THEN 0 ELSE 1 END)) - `max_evaluated`)
+            END);
+        UPDATE `auto_increment_health_evaluation` SET 
+            `calculated_filling_percentage` = (
+                CASE 
+                    WHEN (`record_count_evaluated` IS NULL) THEN NULL 
                     WHEN (`record_count_evaluated` = 0) THEN 0 
                     ELSE ROUND(((`auto_increment_next_value` * 100) / `max_possible`),9)
             END),
-			`calculated_start_gap_percentage` = (
-				CASE 
-					WHEN (`record_count_evaluated` IS NULL) THEN null 
-					WHEN (`record_count_evaluated` = 0) THEN 100 
-					ELSE ROUND(((1 - (`calculated_start_gap_value` / IFNULL(NULLIF((`max_possible` - `min_possible`),0),1)  )) * 100),9)
-			END),
-			`calculated_continuity_gap_percentage` = (
-				CASE 
-					WHEN (`record_count_evaluated` IS NULL) THEN null 
-					WHEN (`record_count_evaluated` = 0) THEN 100 
-					WHEN ((`max_evaluated` = 0) and (`min_evaluated` = 0)) THEN 0 
-					ELSE ROUND(((1 - (`calculated_continuity_gap_value` / IFNULL(NULLIF((`max_evaluated` - `min_evaluated`),0),1)  )) * 100),9)
-			END),
-			`calculated_end_gap_percentage` = (
-				CASE 
-					WHEN (`record_count_evaluated` IS NULL) THEN null 
-					WHEN (`record_count_evaluated` = 0) THEN 100 
-					ELSE ROUND(((1 - (`calculated_end_gap_value` / IFNULL(NULLIF((`max_possible` - `min_possible`),0),1)  )) * 100),9)
-			END);
-		UPDATE `auto_increment_health_evaluation` SET 
-			`calculated_filling_quality_level` = (
-				CASE 
-					WHEN (`calculated_filling_percentage` IS NOT NULL) THEN (
-						CASE 
-							WHEN (`record_count_evaluated` = 0) THEN 'empty' 
-							WHEN (`calculated_filling_percentage` BETWEEN 0 AND 9.999999999) THEN 'tiny' 
-							WHEN (`calculated_filling_percentage` BETWEEN 10 AND 39.999999999) THEN 'low' 
-							WHEN (`calculated_filling_percentage` BETWEEN 40 AND 59.999999999) THEN 'acceptable' 
-							WHEN (`calculated_filling_percentage` BETWEEN 60 AND 79.999999999) THEN 'medium' 
-							WHEN (`calculated_filling_percentage` BETWEEN 80 AND 89.999999999) THEN 'high' 
-							WHEN (`calculated_filling_percentage` BETWEEN 90 AND 99.999999999) THEN 'dangerous' 
-							ELSE 'full' 
-						END) 
-					ELSE NULL
+            `calculated_start_gap_percentage` = (
+                CASE 
+                    WHEN (`record_count_evaluated` IS NULL) THEN null 
+                    WHEN (`record_count_evaluated` = 0) THEN 100 
+                    ELSE ROUND(((1 - (`calculated_start_gap_value` / IFNULL(NULLIF((`max_possible` - `min_possible`),0),1)  )) * 100),9)
             END),
-			`calculated_start_quality_level` = (
-				CASE 
-					WHEN (`calculated_start_gap_percentage` IS NOT NULL) THEN (
-						CASE 
-							WHEN (`calculated_start_gap_percentage` = 100.000000000) THEN 'perfect' 
-							WHEN (`calculated_start_gap_percentage` BETWEEN 90 AND 99.999999999) THEN 'almost' 
-							WHEN (`calculated_start_gap_percentage` BETWEEN 80 AND 89.999999999) THEN 'good'  
-							WHEN (`calculated_start_gap_percentage` BETWEEN 60 AND 79.999999999) THEN 'concerning' 
-							WHEN (`calculated_start_gap_percentage` BETWEEN 40 AND 59.999999999) THEN 'bad' 
-							WHEN (`calculated_start_gap_percentage` BETWEEN 20 AND 39.999999999) THEN 'awful' 
-							ELSE 'disaster' 
-						END) 
-					ELSE NULL
-			END),
-			`calculated_continuity_quality_level` = (
-				CASE 
-					WHEN (`calculated_continuity_gap_percentage` IS NOT NULL) THEN (
-						CASE 
-							WHEN (`calculated_continuity_gap_percentage` = 100.000000000) THEN 'perfect' 
-							WHEN (`calculated_continuity_gap_percentage` BETWEEN 90 AND 99.999999999) THEN 'almost' 
-							WHEN (`calculated_continuity_gap_percentage` BETWEEN 80 AND 89.999999999) THEN 'good'  
-							WHEN (`calculated_continuity_gap_percentage` BETWEEN 60 AND 79.999999999) THEN 'concerning' 
-							WHEN (`calculated_continuity_gap_percentage` BETWEEN 40 AND 59.999999999) THEN 'bad' 
-							WHEN (`calculated_continuity_gap_percentage` BETWEEN 20 AND 39.999999999) THEN 'awful' 
-							ELSE 'disaster' 
-						END) 
-					ELSE NULL
-			END),
-			`calculated_end_quality_level` = (
-				CASE 
-					WHEN (`calculated_end_gap_percentage` IS NOT NULL) THEN (
-						CASE 
-							WHEN (`calculated_end_gap_percentage` = 100.000000000) THEN 'perfect' 
-							WHEN (`calculated_end_gap_percentage` BETWEEN 90 AND 99.999999999) THEN 'almost' 
-							WHEN (`calculated_end_gap_percentage` BETWEEN 80 AND 89.999999999) THEN 'good'  
-							WHEN (`calculated_end_gap_percentage` BETWEEN 60 AND 79.999999999) THEN 'concerning' 
-							WHEN (`calculated_end_gap_percentage` BETWEEN 40 AND 59.999999999) THEN 'bad' 
-							WHEN (`calculated_end_gap_percentage` BETWEEN 20 AND 39.999999999) THEN 'awful' 
-							ELSE 'disaster' 
-						END) 
-					ELSE NULL
-			END);
-	END IF;
+            `calculated_continuity_gap_percentage` = (
+                CASE 
+                    WHEN (`record_count_evaluated` IS NULL) THEN null 
+                    WHEN (`record_count_evaluated` = 0) THEN 100 
+                    WHEN ((`max_evaluated` = 0) and (`min_evaluated` = 0)) THEN 0 
+                    ELSE ROUND(((1 - (`calculated_continuity_gap_value` / IFNULL(NULLIF((`max_evaluated` - `min_evaluated`),0),1)  )) * 100),9)
+            END),
+            `calculated_end_gap_percentage` = (
+                CASE 
+                    WHEN (`record_count_evaluated` IS NULL) THEN null 
+                    WHEN (`record_count_evaluated` = 0) THEN 100 
+                    ELSE ROUND(((1 - (`calculated_end_gap_value` / IFNULL(NULLIF((`max_possible` - `min_possible`),0),1)  )) * 100),9)
+            END);
+        UPDATE `auto_increment_health_evaluation` SET 
+            `calculated_filling_quality_level` = (
+                CASE 
+                    WHEN (`calculated_filling_percentage` IS NOT NULL) THEN (
+                        CASE 
+                            WHEN (`record_count_evaluated` = 0) THEN 'empty' 
+                            WHEN (`calculated_filling_percentage` BETWEEN 0 AND 9.999999999) THEN 'tiny' 
+                            WHEN (`calculated_filling_percentage` BETWEEN 10 AND 39.999999999) THEN 'low' 
+                            WHEN (`calculated_filling_percentage` BETWEEN 40 AND 59.999999999) THEN 'acceptable' 
+                            WHEN (`calculated_filling_percentage` BETWEEN 60 AND 79.999999999) THEN 'medium' 
+                            WHEN (`calculated_filling_percentage` BETWEEN 80 AND 89.999999999) THEN 'high' 
+                            WHEN (`calculated_filling_percentage` BETWEEN 90 AND 99.999999999) THEN 'dangerous' 
+                            ELSE 'full' 
+                        END) 
+                    ELSE NULL
+            END),
+            `calculated_start_quality_level` = (
+                CASE 
+                    WHEN (`calculated_start_gap_percentage` IS NOT NULL) THEN (
+                        CASE 
+                            WHEN (`calculated_start_gap_percentage` = 100.000000000) THEN 'perfect' 
+                            WHEN (`calculated_start_gap_percentage` BETWEEN 90 AND 99.999999999) THEN 'almost' 
+                            WHEN (`calculated_start_gap_percentage` BETWEEN 80 AND 89.999999999) THEN 'good'  
+                            WHEN (`calculated_start_gap_percentage` BETWEEN 60 AND 79.999999999) THEN 'concerning' 
+                            WHEN (`calculated_start_gap_percentage` BETWEEN 40 AND 59.999999999) THEN 'bad' 
+                            WHEN (`calculated_start_gap_percentage` BETWEEN 20 AND 39.999999999) THEN 'awful' 
+                            ELSE 'disaster' 
+                        END) 
+                    ELSE NULL
+            END),
+            `calculated_continuity_quality_level` = (
+                CASE 
+                    WHEN (`calculated_continuity_gap_percentage` IS NOT NULL) THEN (
+                        CASE 
+                            WHEN (`calculated_continuity_gap_percentage` = 100.000000000) THEN 'perfect' 
+                            WHEN (`calculated_continuity_gap_percentage` BETWEEN 90 AND 99.999999999) THEN 'almost' 
+                            WHEN (`calculated_continuity_gap_percentage` BETWEEN 80 AND 89.999999999) THEN 'good'  
+                            WHEN (`calculated_continuity_gap_percentage` BETWEEN 60 AND 79.999999999) THEN 'concerning' 
+                            WHEN (`calculated_continuity_gap_percentage` BETWEEN 40 AND 59.999999999) THEN 'bad' 
+                            WHEN (`calculated_continuity_gap_percentage` BETWEEN 20 AND 39.999999999) THEN 'awful' 
+                            ELSE 'disaster' 
+                        END) 
+                    ELSE NULL
+            END),
+            `calculated_end_quality_level` = (
+                CASE 
+                    WHEN (`calculated_end_gap_percentage` IS NOT NULL) THEN (
+                        CASE 
+                            WHEN (`calculated_end_gap_percentage` = 100.000000000) THEN 'perfect' 
+                            WHEN (`calculated_end_gap_percentage` BETWEEN 90 AND 99.999999999) THEN 'almost' 
+                            WHEN (`calculated_end_gap_percentage` BETWEEN 80 AND 89.999999999) THEN 'good'  
+                            WHEN (`calculated_end_gap_percentage` BETWEEN 60 AND 79.999999999) THEN 'concerning' 
+                            WHEN (`calculated_end_gap_percentage` BETWEEN 40 AND 59.999999999) THEN 'bad' 
+                            WHEN (`calculated_end_gap_percentage` BETWEEN 20 AND 39.999999999) THEN 'awful' 
+                            ELSE 'disaster' 
+                        END) 
+                    ELSE NULL
+            END);
+    END IF;
 END//
 DROP EVENT IF EXISTS `event_AutoIncrementHealthEvaluation`//
 CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` EVENT `event_AutoIncrementHealthEvaluation` 
@@ -365,8 +365,8 @@ STARTS '2016-09-15 00:10:00'
 ON COMPLETION PRESERVE 
 ENABLE DO 
 BEGIN
-	CALL `pr_Auto_Increment_Evaluation_1_Capture`();
-	CALL `pr_Auto_Increment_Evaluation_2_Health`();
+    CALL `pr_Auto_Increment_Evaluation_1_Capture`();
+    CALL `pr_Auto_Increment_Evaluation_2_Health`();
     CALL `pr_Auto_Increment_Evaluation_3_Calculate`();
 END//
 DELIMITER ;
@@ -382,5 +382,5 @@ FROM
 */
 /* Query to resent the AI value */
 /* 
-	ALTER TABLE `table_name_targeted_for_AI_reset` AUTO_INCREMENT = 1; 
+    ALTER TABLE `table_name_targeted_for_AI_reset` AUTO_INCREMENT = 1; 
 */
