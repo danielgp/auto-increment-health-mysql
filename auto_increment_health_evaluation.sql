@@ -49,7 +49,7 @@ DROP USER /*!50708 IF EXISTS */ 'mysql_monitoring'@'127.0.0.1';
 FLUSH PRIVILEGES;
 CREATE USER 'mysql_monitoring'@'127.0.0.1' IDENTIFIED WITH 'mysql_native_password' AS '*3D0D9CFA148374A19EE4ECE3C15D2C447D70CD55' /*!50706 REQUIRE NONE PASSWORD EXPIRE DEFAULT ACCOUNT UNLOCK */;
 GRANT SELECT, EXECUTE ON *.* TO 'mysql_monitoring'@'127.0.0.1';
-GRANT INSERT, UPDATE ON `mysql_monitoring_schema`.* TO 'mysql_monitoring'@'127.0.0.1';
+GRANT INSERT, UPDATE, DELETE ON `mysql_monitoring_schema`.* TO 'mysql_monitoring'@'127.0.0.1';
 FLUSH PRIVILEGES;
 /* Removes existing structure to ensure latest definition of evaluation structure to be created */
 DROP TABLE IF EXISTS `auto_increment_health_evaluation`;
@@ -155,7 +155,7 @@ CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evalu
     COMMENT 'Adds AI columns from all schemas' 
 BEGIN
     /* Ensure we're starting in an empty space */
-    TRUNCATE TABLE `auto_increment_health_evaluation`;
+    DELETE FROM `auto_increment_health_evaluation`;
     /* Capture all AI column from all databases on current MySQL server */
     INSERT INTO `auto_increment_health_evaluation` (`table_schema`, `table_name`, `column_name`, `data_type`, `column_type`, `auto_increment_next_value`)
         SELECT 
