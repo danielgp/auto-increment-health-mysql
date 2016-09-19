@@ -38,7 +38,8 @@ and its implications (see above);
 
 Current script has been crafted for MySQL 5.5 series and has tested with:
 - Oracle MySQL 5.5.52 (on 19.09.2016)
-(for a more recent version of MySQL refer to the script within the root of this package, aka 1 folder up)
+- MariaDB 5.5.52 (on 19.09.2016)
+(for a more recent version of MySQL/MariaDB refer to the script within the root of this package)
 ---------------------------------------------------------------------------- */
 CREATE DATABASE /*!32312 IF NOT EXISTS */ `mysql_monitoring_schema` /*!40100 DEFAULT CHARACTER SET utf8 */;
 USE `mysql_monitoring_schema`;
@@ -46,8 +47,9 @@ USE `mysql_monitoring_schema`;
 DROP USER /*!50708 IF EXISTS */ 'mysql_monitoring'@'127.0.0.1';
 FLUSH PRIVILEGES;
 CREATE USER 'mysql_monitoring'@'127.0.0.1' IDENTIFIED WITH 'mysql_native_password' AS '*3D0D9CFA148374A19EE4ECE3C15D2C447D70CD55' /*!50706 REQUIRE NONE PASSWORD EXPIRE DEFAULT ACCOUNT UNLOCK */;
+SET PASSWORD FOR 'mysql_monitoring'@'127.0.0.1' = PASSWORD('ReplaceMeWithStrongerCombination');
 GRANT SELECT, EXECUTE ON *.* TO 'mysql_monitoring'@'127.0.0.1';
-GRANT INSERT, UPDATE, CREATE, DROP ON `mysql_monitoring_schema`.* TO 'mysql_monitoring'@'127.0.0.1';
+GRANT INSERT, UPDATE, DELETE ON `mysql_monitoring_schema`.* TO 'mysql_monitoring'@'127.0.0.1';
 FLUSH PRIVILEGES;
 /* Removes existing structure to ensure latest definition of evaluation structure to be created */
 DROP TABLE IF EXISTS `auto_increment_health_evaluation`;
@@ -140,12 +142,23 @@ CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` FUNCTION `fn_MySQLversionNumeric`(
 BEGIN
     DECLARE v_setMySQLversion VARCHAR(8);
     DECLARE v_MySQLversion MEDIUMINT(8) UNSIGNED;
-    SELECT REPLACE(VERSION(), '-log', '') INTO v_setMySQLversion;
+    SELECT SUBSTRING_INDEX(VERSION(), '-', 1) INTO v_setMySQLversion;
     SELECT SUBSTRING_INDEX(v_setMySQLversion, '.', 1) into @v_MySQLversionMajor;
     SELECT CAST(REPLACE(SUBSTRING_INDEX(v_setMySQLversion, '.', 2), CONCAT(@v_MySQLversionMajor, '.'), '') AS UNSIGNED) into @v_MySQLversionMinor;
     SELECT CAST(SUBSTRING_INDEX(v_setMySQLversion, '.', -1) AS UNSIGNED) into @v_MySQLversionThird;
     SELECT CAST(CONCAT(@v_MySQLversionMajor, (CASE WHEN (@v_MySQLversionMinor < 10) THEN "0" ELSE "" END), @v_MySQLversionMinor, (CASE WHEN (@v_MySQLversionThird < 10) THEN "0" ELSE "" END), @v_MySQLversionThird) AS UNSIGNED) INTO v_MySQLversion;
     RETURN v_MySQLversion;
+END//
+DROP FUNCTION IF EXISTS `fn_MySQLforkDistribution`//
+CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` FUNCTION `fn_MySQLforkDistribution`() RETURNS VARCHAR(15)
+    DETERMINISTIC 
+    CONTAINS SQL 
+    SQL SECURITY DEFINER 
+    COMMENT 'Returns MySQL or mariadb.org'
+BEGIN
+    DECLARE v_MySQLforkDistribution VARCHAR(15);
+    SELECT SUBSTRING_INDEX(@@global.version_comment, ' ', 1) INTO v_MySQLforkDistribution;
+    RETURN v_MySQLforkDistribution;
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_1_Capture`//
 CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_1_Capture`()
@@ -155,7 +168,7 @@ CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evalu
     COMMENT 'Adds AI columns from all schemas' 
 BEGIN
     /* Ensure we're starting in an empty space */
-    TRUNCATE TABLE `auto_increment_health_evaluation`;
+    DELETE FROM `auto_increment_health_evaluation`;
     /* Capture all AI column from all databases on current MySQL server */
     INSERT INTO `auto_increment_health_evaluation` (`table_schema`, `table_name`, `column_name`, `data_type`, `column_type`, `auto_increment_next_value`)
         SELECT 
@@ -171,7 +184,7 @@ BEGIN
         GROUP BY `C`.`TABLE_SCHEMA`, `C`.`TABLE_NAME`, `C`.`COLUMN_NAME`
         ORDER BY `C`.`TABLE_SCHEMA`, `C`.`TABLE_NAME`, `C`.`COLUMN_NAME`;
     /* Calculates few columns for MySQL older than 5.7.6 which does not support generated columns */
-    IF (`fn_MySQLversionNumeric`() < 50706) THEN
+    IF ((`fn_MySQLforkDistribution`() = 'MySQL') AND (`fn_MySQLversionNumeric`() < 50706)) OR ((`fn_MySQLforkDistribution`() = 'mariadb.org') AND (`fn_MySQLversionNumeric`() < 100201)) THEN
         UPDATE `auto_increment_health_evaluation` SET
             `min_possible` = (
                 CASE
@@ -247,7 +260,7 @@ CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evalu
     SQL SECURITY DEFINER 
     COMMENT 'Calculates few columns for MySQL older than 5.7.6 which does not support generated columns' 
 BEGIN
-    IF (`fn_MySQLversionNumeric`() < 50706) THEN
+    IF ((`fn_MySQLforkDistribution`() = 'MySQL') AND (`fn_MySQLversionNumeric`() < 50706)) OR ((`fn_MySQLforkDistribution`() = 'mariadb.org') AND (`fn_MySQLversionNumeric`() < 100201)) THEN
         UPDATE `auto_increment_health_evaluation` SET 
             `calculated_filling_value` = (
                 CASE 

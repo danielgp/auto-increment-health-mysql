@@ -41,6 +41,8 @@ Current script has been tested on following MySQL flavours:
 - Oracle MySQL 5.6.33 (on 16.09.2016)
 - Oracle MySQL 5.7.15 (on 14.09.2016)
 - Oracle MySQL 8.0.0-dmr (on 15.09.2016)
+- MariaDB.org 10.1.17 (on 19.09.2016)
+- MariaDB.org 10.0.27 (on 19.09.2016)
 ---------------------------------------------------------------------------- */
 CREATE DATABASE /*!32312 IF NOT EXISTS */ `mysql_monitoring_schema` /*!40100 DEFAULT CHARACTER SET utf8 */;
 USE `mysql_monitoring_schema`;
@@ -48,6 +50,7 @@ USE `mysql_monitoring_schema`;
 DROP USER /*!50708 IF EXISTS */ 'mysql_monitoring'@'127.0.0.1';
 FLUSH PRIVILEGES;
 CREATE USER 'mysql_monitoring'@'127.0.0.1' IDENTIFIED WITH 'mysql_native_password' AS '*3D0D9CFA148374A19EE4ECE3C15D2C447D70CD55' /*!50706 REQUIRE NONE PASSWORD EXPIRE DEFAULT ACCOUNT UNLOCK */;
+SET PASSWORD FOR 'mysql_monitoring'@'127.0.0.1' = PASSWORD('ReplaceMeWithStrongerCombination');
 GRANT SELECT, EXECUTE ON *.* TO 'mysql_monitoring'@'127.0.0.1';
 GRANT INSERT, UPDATE, DELETE ON `mysql_monitoring_schema`.* TO 'mysql_monitoring'@'127.0.0.1';
 FLUSH PRIVILEGES;
@@ -147,6 +150,17 @@ BEGIN
     SELECT CAST(CONCAT(@v_MySQLversionMajor, (CASE WHEN (@v_MySQLversionMinor < 10) THEN "0" ELSE "" END), @v_MySQLversionMinor, (CASE WHEN (@v_MySQLversionThird < 10) THEN "0" ELSE "" END), @v_MySQLversionThird) AS UNSIGNED) INTO v_MySQLversion;
     RETURN v_MySQLversion;
 END//
+DROP FUNCTION IF EXISTS `fn_MySQLforkDistribution`//
+CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` FUNCTION `fn_MySQLforkDistribution`() RETURNS VARCHAR(15)
+    DETERMINISTIC 
+    CONTAINS SQL 
+    SQL SECURITY DEFINER 
+    COMMENT 'Returns MySQL or mariadb.org'
+BEGIN
+    DECLARE v_MySQLforkDistribution VARCHAR(15);
+    SELECT SUBSTRING_INDEX(@@global.version_comment, ' ', 1) INTO v_MySQLforkDistribution;
+    RETURN v_MySQLforkDistribution;
+END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_1_Capture`//
 CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_1_Capture`()
     NOT DETERMINISTIC 
@@ -171,7 +185,7 @@ BEGIN
         GROUP BY `C`.`TABLE_SCHEMA`, `C`.`TABLE_NAME`, `C`.`COLUMN_NAME`
         ORDER BY `C`.`TABLE_SCHEMA`, `C`.`TABLE_NAME`, `C`.`COLUMN_NAME`;
     /* Calculates few columns for MySQL older than 5.7.6 which does not support generated columns */
-    IF (`fn_MySQLversionNumeric`() < 50706) THEN
+    IF ((`fn_MySQLforkDistribution`() = 'MySQL') AND (`fn_MySQLversionNumeric`() < 50706)) OR ((`fn_MySQLforkDistribution`() = 'mariadb.org') AND (`fn_MySQLversionNumeric`() < 100201)) THEN
         UPDATE `auto_increment_health_evaluation` SET
             `min_possible` = (
                 CASE
@@ -247,7 +261,7 @@ CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evalu
     SQL SECURITY DEFINER 
     COMMENT 'Calculates few columns for MySQL older than 5.7.6 which does not support generated columns' 
 BEGIN
-    IF (`fn_MySQLversionNumeric`() < 50706) THEN
+    IF ((`fn_MySQLforkDistribution`() = 'MySQL') AND (`fn_MySQLversionNumeric`() < 50706)) OR ((`fn_MySQLforkDistribution`() = 'mariadb.org') AND (`fn_MySQLversionNumeric`() < 100201)) THEN
         UPDATE `auto_increment_health_evaluation` SET 
             `calculated_filling_value` = (
                 CASE 
