@@ -36,11 +36,9 @@ and its implications (see above);
 in the source that populates your data that is affecting the end with potential bigger problems on filling level 
 and its implications (see above);
 
-Current script has been tested on following MySQL flavours:
-- Oracle MySQL 5.5.52 (on 19.09.2016, different script created due to big DDL differences, see "MySQL55" folder)
-- Oracle MySQL 5.6.33 (on 16.09.2016)
-- Oracle MySQL 5.7.15 (on 14.09.2016)
-- Oracle MySQL 8.0.0-dmr (on 15.09.2016)
+Current script has been crafted for MySQL 5.5 series and has tested with:
+- Oracle MySQL 5.5.52 (on 19.09.2016)
+(for a more recent version of MySQL refer to the script within the root of this package, aka 1 folder up)
 ---------------------------------------------------------------------------- */
 CREATE DATABASE /*!32312 IF NOT EXISTS */ `mysql_monitoring_schema` /*!40100 DEFAULT CHARACTER SET utf8 */;
 USE `mysql_monitoring_schema`;
@@ -49,7 +47,7 @@ DROP USER /*!50708 IF EXISTS */ 'mysql_monitoring'@'127.0.0.1';
 FLUSH PRIVILEGES;
 CREATE USER 'mysql_monitoring'@'127.0.0.1' IDENTIFIED WITH 'mysql_native_password' AS '*3D0D9CFA148374A19EE4ECE3C15D2C447D70CD55' /*!50706 REQUIRE NONE PASSWORD EXPIRE DEFAULT ACCOUNT UNLOCK */;
 GRANT SELECT, EXECUTE ON *.* TO 'mysql_monitoring'@'127.0.0.1';
-GRANT INSERT, UPDATE ON `mysql_monitoring_schema`.* TO 'mysql_monitoring'@'127.0.0.1';
+GRANT INSERT, UPDATE, CREATE, DROP ON `mysql_monitoring_schema`.* TO 'mysql_monitoring'@'127.0.0.1';
 FLUSH PRIVILEGES;
 /* Removes existing structure to ensure latest definition of evaluation structure to be created */
 DROP TABLE IF EXISTS `auto_increment_health_evaluation`;
@@ -63,7 +61,7 @@ CREATE TABLE IF NOT EXISTS `auto_increment_health_evaluation` (
   `auto_increment_next_value` bigint(20) UNSIGNED NOT NULL,
   `min_possible` bigint(21) /*!50706 GENERATED ALWAYS AS ((case when (locate('unsigned',`column_type`) != 0) then 0 else (case when (`data_type` = 'tinyint') then -(128) when (`data_type` = 'smallint') then -(32768) when (`data_type` = 'mediumint') then -(8388608) when (`data_type` = 'int') then -(2147483648) when (`data_type` = 'bigint') then -(9223372036854775808) else NULL end) end)) STORED */, 
   `max_possible` bigint(20) UNSIGNED /*!50706 GENERATED ALWAYS AS ((case when ((`data_type` = 'tinyint') and (locate('unsigned',`column_type`) = 0)) then 127 when ((`data_type` = 'tinyint') and (locate('unsigned',`column_type`) <> 0)) then 255 when ((`data_type` = 'smallint') and (locate('unsigned',`column_type`) = 0)) then 32767 when ((`data_type` = 'smallint') and (locate('unsigned',`column_type`) <> 0)) then 65535 when ((`data_type` = 'mediumint') and (locate('unsigned',`column_type`) = 0)) then 8388607 when ((`data_type` = 'mediumint') and (locate('unsigned',`column_type`) <> 0)) then 16777215 when ((`data_type` = 'int') and (locate('unsigned',`column_type`) = 0)) then 2147483647 when ((`data_type` = 'int') and (locate('unsigned',`column_type`) <> 0)) then 4294967295 when ((`data_type` = 'bigint') and (locate('unsigned',`column_type`) = 0)) then 9223372036854775807 when ((`data_type` = 'bigint') and (locate('unsigned',`column_type`) <> 0)) then 18446744073709551615 else 1 end)) STORED */,
-  `evaluation_timestamp_added` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `evaluation_timestamp_added` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `min_evaluated` bigint(21) DEFAULT NULL,
   `max_evaluated` bigint(20) UNSIGNED DEFAULT NULL,
   `record_count_evaluated` bigint(20) UNSIGNED DEFAULT NULL,
@@ -79,7 +77,7 @@ CREATE TABLE IF NOT EXISTS `auto_increment_health_evaluation` (
   `calculated_end_gap_value` bigint(20) UNSIGNED /*!50706 GENERATED ALWAYS AS (case when (`record_count_evaluated` is null) then null when (`record_count_evaluated` = 0) then 0 else ((`auto_increment_next_value` - (case when (`auto_increment_next_value` = `max_evaluated`) then 0 else 1 end)) - `max_evaluated`) end) STORED */,
   `calculated_end_gap_percentage` decimal(12,9) /*!50706 GENERATED ALWAYS AS ((case when (`record_count_evaluated` is null) then null when (`record_count_evaluated` = 0) then 100 else round(((1 - (`calculated_end_gap_value` / ifnull(nullif((`max_possible` - `min_possible`),0),1)  )) * 100),9) end)) STORED */,
   `calculated_end_quality_level` enum('perfect','almost','good','concerning','bad','awful','disaster') /*!50706 GENERATED ALWAYS AS (case when (`calculated_end_gap_percentage` is not null) then (case when (`calculated_end_gap_percentage` = 100.000000000) then 'perfect' when (`calculated_end_gap_percentage` between 90 and 99.999999999) then 'almost' when (`calculated_end_gap_percentage` between 80 and 89.999999999) then 'good'  when (`calculated_end_gap_percentage` between 60 and 79.999999999) then 'concerning' when (`calculated_end_gap_percentage` between 40 and 59.999999999) then 'bad' when (`calculated_end_gap_percentage` between 20 and 39.999999999) then 'awful' else 'disaster' end) else null end) STORED */,
-  `evaluation_timestamp_completed` datetime(6) DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP(6),
+  `evaluation_timestamp_completed` DATETIME DEFAULT NULL,
   PRIMARY KEY (`table_schema`,`table_name`,`column_name`),
   KEY `calculated_filling_percentage` (`calculated_filling_percentage`),
   KEY `calculated_filling_quality_level` (`calculated_filling_quality_level`),
@@ -90,6 +88,8 @@ CREATE TABLE IF NOT EXISTS `auto_increment_health_evaluation` (
   KEY `calculated_end_gap_percentage` (`calculated_end_gap_percentage`),
   KEY `calculated_end_quality_level` (`calculated_end_quality_level`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
+/* Creates a trigger to support a second TIMESTAMP capturing which is not supported by MySQL 5.5 directly within table definition */
+CREATE TRIGGER `trg__auto_increment_health_evaluation__ub` BEFORE UPDATE ON `mysql_monitoring_schema`.`auto_increment_health_evaluation` FOR EACH ROW SET NEW.`evaluation_timestamp_completed` = NOW();
 /* Entire logic of Auto Increment Health Evaluation */
 DELIMITER //
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_Min`//
