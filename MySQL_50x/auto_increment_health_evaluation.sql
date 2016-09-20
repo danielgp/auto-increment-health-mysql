@@ -38,9 +38,6 @@ and its implications (see above);
 
 Current script has been crafted for MySQL 5.5 series and has tested with:
 - Oracle MySQL 5.0.96 (on 19.09.2016 - not supporting events require sequence of 3 procedure launched by other means)
-- Oracle MySQL 5.1.72 (on 19.09.2016)
-- Oracle MySQL 5.5.52 (on 19.09.2016)
-- MariaDB 5.5.52 (on 19.09.2016)
 (for a more recent version of MySQL/MariaDB refer to the script within the root of this package)
 ---------------------------------------------------------------------------- */
 CREATE DATABASE /*!32312 IF NOT EXISTS */ `mysql_monitoring_schema` /*!40100 DEFAULT CHARACTER SET utf8 */;
@@ -48,10 +45,10 @@ USE `mysql_monitoring_schema`;
 /* Creates the MySQL user that will be responsable to run entire logic of Auto Increment Health Evaluation */
 DROP USER /*!50708 IF EXISTS */ 'mysql_monitoring'@'127.0.0.1';
 FLUSH PRIVILEGES;
-CREATE USER 'mysql_monitoring'@'127.0.0.1' /*!50500 IDENTIFIED WITH 'mysql_native_password' AS '*3D0D9CFA148374A19EE4ECE3C15D2C447D70CD55' */ /*!50706 REQUIRE NONE PASSWORD EXPIRE DEFAULT ACCOUNT UNLOCK */;
+CREATE USER 'mysql_monitoring'@'127.0.0.1';
 SET PASSWORD FOR 'mysql_monitoring'@'127.0.0.1' = PASSWORD('ReplaceMeWithStrongerCombination');
 GRANT SELECT, EXECUTE ON *.* TO 'mysql_monitoring'@'127.0.0.1';
-GRANT INSERT, UPDATE, DELETE ON `mysql_monitoring_schema`.* TO 'mysql_monitoring'@'127.0.0.1';
+GRANT INSERT, UPDATE, DELETE, EVENT ON `mysql_monitoring_schema`.* TO 'mysql_monitoring'@'127.0.0.1';
 FLUSH PRIVILEGES;
 /* Removes existing structure to ensure latest definition of evaluation structure to be created */
 DROP TABLE IF EXISTS `auto_increment_health_evaluation`;
@@ -170,7 +167,7 @@ CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evalu
     COMMENT 'Adds AI columns from all schemas' 
 BEGIN
     /* Ensure we're starting in an empty space */
-    DELETE FROM `auto_increment_health_evaluation`;
+    DELETE FROM `auto_increment_health_evaluation` WHERE (`table_schema` IS NOT NULL);
     /* Capture all AI column from all databases on current MySQL server */
     INSERT INTO `auto_increment_health_evaluation` (`table_schema`, `table_name`, `column_name`, `data_type`, `column_type`, `auto_increment_next_value`)
         SELECT 
@@ -374,25 +371,22 @@ BEGIN
             END);
     END IF;
 END//
-/*!50100 DROP EVENT IF EXISTS `event_AutoIncrementHealthEvaluation`// */
-/*!50100 CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` EVENT `event_AutoIncrementHealthEvaluation` 
-ON SCHEDULE EVERY 1 DAY 
-STARTS '2016-09-15 00:10:00' 
-ON COMPLETION PRESERVE 
-ENABLE DO 
-BEGIN
+/* In order to have a regular measure, make sure below 3 queries will be launched */
+/*
     CALL `pr_Auto_Increment_Evaluation_1_Capture`();
     CALL `pr_Auto_Increment_Evaluation_2_Health`();
     CALL `pr_Auto_Increment_Evaluation_3_Calculate`();
-END// */
+*/
 DELIMITER ;
 /* Query to help you assess how much time running the Auto Increment Health Evaluation takes */
 /*
 SELECT
+	MIN(`evaluation_timestamp_added`) AS StartingTime,
     TIMEDIFF(MAX(`evaluation_timestamp_added`), MIN(`evaluation_timestamp_added`)) AS Added_Duration,
     TIMEDIFF(MIN(`evaluation_timestamp_completed`), MAX(`evaluation_timestamp_added`)) AS GapBetweenAddAndCompleted_Duration,
     TIMEDIFF(MAX(`evaluation_timestamp_completed`), MIN(`evaluation_timestamp_completed`)) AS Completed_Duration,
-    TIMEDIFF(MAX(`evaluation_timestamp_completed`), MIN(`evaluation_timestamp_added`)) AS Entire_Duration
+    TIMEDIFF(MAX(`evaluation_timestamp_completed`), MIN(`evaluation_timestamp_added`)) AS Entire_Duration,
+    MAX(`evaluation_timestamp_completed`) AS CompletionTime
 FROM
     `auto_increment_health_evaluation`;
 */
