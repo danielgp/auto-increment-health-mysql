@@ -42,21 +42,23 @@ Current script has been tested on following MySQL flavours:
 - Oracle MySQL 5.5.52 (on 19.09.2016, different script created due to big DDL differences, see "MySQL_51x-55x" folder)
 - Oracle MySQL 5.6.33 (on 16.09.2016)
 - Oracle MySQL 5.7.15 (on 14.09.2016)
+- Oracle MySQL 5.7.16 (on 07.11.2016)
 - Oracle MySQL 8.0.0-dmr (on 15.09.2016)
 - MariaDB.org 5.5.52 (on 19.09.2016, different script created due to big DDL differences, see "MySQL_51x-55x" folder)
 - MariaDB.org 10.0.27 (on 19.09.2016)
 - MariaDB.org 10.1.17 (on 19.09.2016)
 - MariaDB.org 10.2.1-alpha (on 19.09.2016)
 ---------------------------------------------------------------------------- */
-CREATE DATABASE /*!32312 IF NOT EXISTS */ `mysql_monitoring_schema` /*!40100 DEFAULT CHARACTER SET utf8 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS */ `mysql_monitoring_schema` /*!40100 DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci */;
 USE `mysql_monitoring_schema`;
 /* Creates the MySQL user that will be responsable to run entire logic of Auto Increment Health Evaluation */
 DROP USER /*!50708 IF EXISTS */ 'mysql_monitoring'@'127.0.0.1';
+DROP USER /*!50708 IF EXISTS */ 'mysql_monitoring_user'@'127.0.0.1';
 FLUSH PRIVILEGES;
-CREATE USER 'mysql_monitoring'@'127.0.0.1' /*!50706 REQUIRE NONE PASSWORD EXPIRE DEFAULT ACCOUNT UNLOCK */;
-SET PASSWORD FOR 'mysql_monitoring'@'127.0.0.1' = PASSWORD('ReplaceMeWithStrongerCombination');
-GRANT SELECT, EXECUTE ON *.* TO 'mysql_monitoring'@'127.0.0.1';
-GRANT INSERT, UPDATE, DELETE, EVENT ON `mysql_monitoring_schema`.* TO 'mysql_monitoring'@'127.0.0.1';
+CREATE USER 'mysql_monitoring_user'@'127.0.0.1' /*!50706 REQUIRE NONE PASSWORD EXPIRE DEFAULT ACCOUNT UNLOCK */;
+SET PASSWORD FOR 'mysql_monitoring_user'@'127.0.0.1' = PASSWORD('ReplaceMeWithStrongerCombination');
+GRANT SELECT, EXECUTE ON *.* TO 'mysql_monitoring_user'@'127.0.0.1';
+GRANT INSERT, UPDATE, DELETE, EVENT ON `mysql_monitoring_schema`.* TO 'mysql_monitoring_user'@'127.0.0.1';
 FLUSH PRIVILEGES;
 /* Removes existing structure to ensure latest definition of evaluation structure to be created */
 DROP TABLE IF EXISTS `auto_increment_health_evaluation`;
@@ -96,11 +98,11 @@ CREATE TABLE IF NOT EXISTS `auto_increment_health_evaluation` (
   KEY `calculated_continuity_quality_level` (`calculated_continuity_quality_level`),
   KEY `calculated_end_gap_percentage` (`calculated_end_gap_percentage`),
   KEY `calculated_end_quality_level` (`calculated_end_quality_level`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPACT;
 /* Entire logic of Auto Increment Health Evaluation */
 DELIMITER //
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_Min`//
-CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_Min`(IN `p_TableSchema` VARCHAR(64), IN `p_TableName` VARCHAR(64), IN `p_ColumnName` VARCHAR(64), OUT `p_MinAutoIncrement` BIGINT(21))
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_Min`(IN `p_TableSchema` VARCHAR(64), IN `p_TableName` VARCHAR(64), IN `p_ColumnName` VARCHAR(64), OUT `p_MinAutoIncrement` BIGINT(21))
     NOT DETERMINISTIC 
     READS SQL DATA 
     SQL SECURITY DEFINER 
@@ -113,7 +115,7 @@ BEGIN
     DEALLOCATE PREPARE complete_min_sql;
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_Max`//
-CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_Max`(IN `p_TableSchema` VARCHAR(64), IN `p_TableName` VARCHAR(64), IN `p_ColumnName` VARCHAR(64), OUT `p_MaxAutoIncrement` BIGINT(20) UNSIGNED)
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_Max`(IN `p_TableSchema` VARCHAR(64), IN `p_TableName` VARCHAR(64), IN `p_ColumnName` VARCHAR(64), OUT `p_MaxAutoIncrement` BIGINT(20) UNSIGNED)
     NOT DETERMINISTIC 
     READS SQL DATA 
     SQL SECURITY DEFINER 
@@ -126,7 +128,7 @@ BEGIN
     DEALLOCATE PREPARE complete_max_sql;
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_Records`//
-CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_Records`(IN `p_TableSchema` VARCHAR(64), IN `p_TableName` VARCHAR(64), IN `p_ColumnName` VARCHAR(64), OUT `p_Record_Count` BIGINT(20) UNSIGNED)
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_Records`(IN `p_TableSchema` VARCHAR(64), IN `p_TableName` VARCHAR(64), IN `p_ColumnName` VARCHAR(64), OUT `p_Record_Count` BIGINT(20) UNSIGNED)
     NOT DETERMINISTIC 
     READS SQL DATA 
     SQL SECURITY DEFINER 
@@ -139,7 +141,7 @@ BEGIN
     DEALLOCATE PREPARE complete_records_sql;
 END//
 DROP FUNCTION IF EXISTS `fn_MySQLversionNumeric`//
-CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` FUNCTION `fn_MySQLversionNumeric`() RETURNS MEDIUMINT(8) UNSIGNED
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` FUNCTION `fn_MySQLversionNumeric`() RETURNS MEDIUMINT(8) UNSIGNED
     DETERMINISTIC 
     CONTAINS SQL 
     SQL SECURITY DEFINER 
@@ -155,7 +157,7 @@ BEGIN
     RETURN v_MySQLversion;
 END//
 DROP FUNCTION IF EXISTS `fn_MySQLforkDistribution`//
-CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` FUNCTION `fn_MySQLforkDistribution`() RETURNS VARCHAR(15)
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` FUNCTION `fn_MySQLforkDistribution`() RETURNS VARCHAR(15)
     DETERMINISTIC 
     CONTAINS SQL 
     SQL SECURITY DEFINER 
@@ -166,7 +168,7 @@ BEGIN
     RETURN v_MySQLforkDistribution;
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_1_Capture`//
-CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_1_Capture`()
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_1_Capture`()
     NOT DETERMINISTIC 
     MODIFIES SQL DATA 
     SQL SECURITY DEFINER 
@@ -220,7 +222,7 @@ BEGIN
     END IF;
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_2_Health`//
-CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_2_Health`()
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_2_Health`()
     NOT DETERMINISTIC 
     MODIFIES SQL DATA 
     SQL SECURITY DEFINER 
@@ -259,7 +261,7 @@ BEGIN
     DEALLOCATE PREPARE complete_sql;
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_3_Calculate`//
-CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_3_Calculate`()
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_3_Calculate`()
     NOT DETERMINISTIC 
     MODIFIES SQL DATA 
     SQL SECURITY DEFINER 
@@ -378,7 +380,7 @@ BEGIN
     END IF;
 END//
 DROP EVENT IF EXISTS `event_AutoIncrementHealthEvaluation`//
-CREATE DEFINER=`mysql_monitoring`@`127.0.0.1` EVENT `event_AutoIncrementHealthEvaluation` 
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` EVENT `event_AutoIncrementHealthEvaluation` 
 ON SCHEDULE EVERY 1 DAY 
 STARTS '2016-09-15 00:10:00' 
 ON COMPLETION PRESERVE 
