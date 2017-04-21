@@ -2,7 +2,7 @@
  *
  * The MIT License (MIT)
  *
- * Copyright (c) 2016 Daniel Popiniuc
+ * Copyright (c) 2017 Daniel Popiniuc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -168,7 +168,7 @@ BEGIN
     RETURN v_MySQLforkDistribution;
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_1_Capture`//
-CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_1_Capture`(IN p_InScope_Database VARCHAR(64))
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_1_Capture`(IN p_InScope_Database VARCHAR(64), IN p_InScope_Table VARCHAR(64))
     NOT DETERMINISTIC 
     MODIFIES SQL DATA 
     SQL SECURITY DEFINER 
@@ -193,6 +193,7 @@ BEGIN
         WHERE
             (`C`.`TABLE_SCHEMA` LIKE p_InScope_Database)
             AND (`C`.`TABLE_SCHEMA` NOT LIKE DATABASE())
+            AND (`C`.`TABLE_NAME` LIKE p_InScope_Table)
             AND (`C`.`EXTRA` LIKE 'auto_increment')
         GROUP BY
             `C`.`TABLE_SCHEMA`, 
@@ -234,11 +235,13 @@ BEGIN
                     ELSE 1
             END)
         WHERE
-            (`C`.`TABLE_SCHEMA` LIKE p_InScope_Database);
+            (`C`.`TABLE_SCHEMA` LIKE p_InScope_Database)
+            AND (`C`.`TABLE_SCHEMA` NOT LIKE DATABASE())
+            AND (`C`.`TABLE_NAME` LIKE p_InScope_Table);
     END IF;
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_2_Health`//
-CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_2_Health`(IN p_InScope_Database VARCHAR(64))
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_2_Health`(IN p_InScope_Database VARCHAR(64), IN p_InScope_Table VARCHAR(64))
     NOT DETERMINISTIC 
     MODIFIES SQL DATA 
     SQL SECURITY DEFINER 
@@ -252,7 +255,7 @@ BEGIN
     DECLARE v_Max_Evaluated BIGINT(20) UNSIGNED;
     DECLARE v_Record_Count_Evaluated BIGINT(20) UNSIGNED;
     /* Reads existing AI columns to later evaluate 1 by 1 */
-    DECLARE info_cursor CURSOR FOR SELECT `table_schema`, `table_name`, `column_name` FROM `auto_increment_health_evaluation` WHERE (`table_schema` LIKE p_InScope_Database);
+    DECLARE info_cursor CURSOR FOR SELECT `table_schema`, `table_name`, `column_name` FROM `auto_increment_health_evaluation` WHERE (`table_schema` LIKE p_InScope_Database) AND (`table_schema` NOT LIKE DATABASE()) AND (`table_name` LIKE p_InScope_Table);
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_done = 1;
     /* Evaluate current situation for every single relevant column and table */
     SET @dynamic_sql = "UPDATE `auto_increment_health_evaluation` SET `min_evaluated` = ?, `max_evaluated` = ?, `record_count_evaluated` = ? WHERE (`table_schema` = ?) AND (`table_name` = ?) AND (`column_name` = ?);";
@@ -277,7 +280,7 @@ BEGIN
     DEALLOCATE PREPARE complete_sql;
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_3_Calculate`//
-CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_3_Calculate`(IN p_InScope_Database VARCHAR(64))
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_3_Calculate`(IN p_InScope_Database VARCHAR(64), IN p_InScope_Table VARCHAR(64))
     NOT DETERMINISTIC 
     MODIFIES SQL DATA 
     SQL SECURITY DEFINER 
@@ -315,7 +318,10 @@ BEGIN
                     WHEN (`record_count_evaluated` = 0) THEN 0 
                     ELSE ((`auto_increment_next_value` - (CASE WHEN (`auto_increment_next_value` = `max_evaluated`) THEN 0 ELSE 1 END)) - `max_evaluated`)
             END)
-        WHERE (`table_schema` LIKE p_InScope_Database);
+        WHERE
+            (`table_schema` LIKE p_InScope_Database) 
+            AND (`table_schema` NOT LIKE DATABASE()) 
+            AND (`table_name` LIKE p_InScope_Table);
         UPDATE
             `auto_increment_health_evaluation`
         SET 
@@ -344,7 +350,10 @@ BEGIN
                     WHEN (`record_count_evaluated` = 0) THEN 100 
                     ELSE ROUND(((1 - (`calculated_end_gap_value` / IFNULL(NULLIF((`max_possible` - `min_possible`),0),1)  )) * 100),9)
             END)
-        WHERE (`table_schema` LIKE p_InScope_Database);
+        WHERE
+            (`table_schema` LIKE p_InScope_Database) 
+            AND (`table_schema` NOT LIKE DATABASE()) 
+            AND (`table_name` LIKE p_InScope_Table);
         UPDATE
             `auto_increment_health_evaluation`
         SET 
@@ -405,16 +414,19 @@ BEGIN
                         END) 
                     ELSE NULL
             END)
-        WHERE (`table_schema` LIKE p_InScope_Database);
+        WHERE
+            (`table_schema` LIKE p_InScope_Database) 
+            AND (`table_schema` NOT LIKE DATABASE()) 
+            AND (`table_name` LIKE p_InScope_Table);
     END IF;
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_ALL`//
-CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_ALL`(IN p_InScope_Database VARCHAR(64))
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_ALL`(IN p_InScope_Database VARCHAR(64), IN p_InScope_Table VARCHAR(64))
     MODIFIES SQL DATA
 BEGIN
-    CALL `pr_Auto_Increment_Evaluation_1_Capture`(p_InScope_Database);
-    CALL `pr_Auto_Increment_Evaluation_2_Health`(p_InScope_Database);
-    CALL `pr_Auto_Increment_Evaluation_3_Calculate`(p_InScope_Database);
+    CALL `pr_Auto_Increment_Evaluation_1_Capture`(p_InScope_Database, p_InScope_Table);
+    CALL `pr_Auto_Increment_Evaluation_2_Health`(p_InScope_Database, p_InScope_Table);
+    CALL `pr_Auto_Increment_Evaluation_3_Calculate`(p_InScope_Database, p_InScope_Table);
 END//
 DROP EVENT IF EXISTS `event_AutoIncrementHealthEvaluation`//
 CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` EVENT `event_AutoIncrementHealthEvaluation` 
@@ -423,7 +435,7 @@ STARTS '2016-09-15 00:10:00'
 ON COMPLETION PRESERVE 
 ENABLE DO 
 BEGIN
-    CALL `pr_Auto_Increment_Evaluation_ALL`('%');
+    CALL `pr_Auto_Increment_Evaluation_ALL`('%', '%');
 END//
 CREATE OR REPLACE 
     ALGORITHM = UNDEFINED
