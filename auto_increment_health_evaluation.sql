@@ -168,12 +168,14 @@ BEGIN
     RETURN v_MySQLforkDistribution;
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_1_Capture`//
-CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_1_Capture`()
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_1_Capture`(IN p_InScope_Database VARCHAR(64))
     NOT DETERMINISTIC 
     MODIFIES SQL DATA 
     SQL SECURITY DEFINER 
     COMMENT 'Adds AI columns from all schemas' 
 BEGIN
+    DECLARE v_MySQL_Distribution VARCHAR(254);
+    DECLARE v_MySQL_Version_Numeric MEDIUMINT(8) UNSIGNED;
     /* Ensure we're starting in an empty space */
     DELETE FROM `auto_increment_health_evaluation` WHERE (`table_schema` IS NOT NULL);
     /* Capture all AI column from all databases on current MySQL server */
@@ -186,12 +188,24 @@ BEGIN
             `C`.`COLUMN_TYPE`,
             `T`.`AUTO_INCREMENT`
         FROM `information_schema`.`COLUMNS` `C`
-        INNER JOIN `information_schema`.`TABLES` `T` ON ((`C`.`TABLE_SCHEMA` = `T`.`TABLE_SCHEMA`) AND (`C`.`TABLE_NAME` = `T`.`TABLE_NAME`))
-        WHERE (`C`.`EXTRA` LIKE 'auto_increment')
-        GROUP BY `C`.`TABLE_SCHEMA`, `C`.`TABLE_NAME`, `C`.`COLUMN_NAME`
-        ORDER BY `C`.`TABLE_SCHEMA`, `C`.`TABLE_NAME`, `C`.`COLUMN_NAME`;
+            INNER JOIN `information_schema`.`TABLES` `T` 
+                ON ((`C`.`TABLE_SCHEMA` = `T`.`TABLE_SCHEMA`) AND (`C`.`TABLE_NAME` = `T`.`TABLE_NAME`))
+        WHERE
+            (`C`.`TABLE_SCHEMA` LIKE p_InScope_Database)
+            AND (`C`.`TABLE_SCHEMA` NOT LIKE DATABASE())
+            AND (`C`.`EXTRA` LIKE 'auto_increment')
+        GROUP BY
+            `C`.`TABLE_SCHEMA`, 
+            `C`.`TABLE_NAME`, 
+            `C`.`COLUMN_NAME`
+        ORDER BY
+            `C`.`TABLE_SCHEMA`, 
+            `C`.`TABLE_NAME`, 
+            `C`.`COLUMN_NAME`;
     /* Calculates few columns for MySQL older than 5.7.6 which does not support generated columns */
-    IF ((`fn_MySQLforkDistribution`() = 'MySQL') AND (`fn_MySQLversionNumeric`() < 50706)) OR ((`fn_MySQLforkDistribution`() = 'mariadb.org') AND (`fn_MySQLversionNumeric`() < 100201)) THEN
+    SELECT `fn_MySQLforkDistribution`() INTO v_MySQL_Distribution;
+    SELECT `fn_MySQLversionNumeric`() INTO v_MySQL_Version_Numeric;
+    IF ((v_MySQL_Distribution = 'MySQL') AND (v_MySQL_Version_Numeric < 50706)) OR ((v_MySQL_Distribution = 'mariadb.org') AND (v_MySQL_Version_Numeric < 100201)) THEN
         UPDATE `auto_increment_health_evaluation` SET
             `min_possible` = (
                 CASE
@@ -218,11 +232,13 @@ BEGIN
                     WHEN ((`data_type` = 'bigint') AND (LOCATE('unsigned', `column_type`) = 0)) THEN 9223372036854775807
                     WHEN ((`data_type` = 'bigint') AND (LOCATE('unsigned', `column_type`) != 0)) THEN 18446744073709551615
                     ELSE 1
-            END);
+            END)
+        WHERE
+            (`C`.`TABLE_SCHEMA` LIKE p_InScope_Database);
     END IF;
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_2_Health`//
-CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_2_Health`()
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_2_Health`(IN p_InScope_Database VARCHAR(64))
     NOT DETERMINISTIC 
     MODIFIES SQL DATA 
     SQL SECURITY DEFINER 
@@ -236,7 +252,7 @@ BEGIN
     DECLARE v_Max_Evaluated BIGINT(20) UNSIGNED;
     DECLARE v_Record_Count_Evaluated BIGINT(20) UNSIGNED;
     /* Reads existing AI columns to later evaluate 1 by 1 */
-    DECLARE info_cursor CURSOR FOR SELECT `table_schema`, `table_name`, `column_name` FROM `auto_increment_health_evaluation`;
+    DECLARE info_cursor CURSOR FOR SELECT `table_schema`, `table_name`, `column_name` FROM `auto_increment_health_evaluation` WHERE (`table_schema` LIKE p_InScope_Database);
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_done = 1;
     /* Evaluate current situation for every single relevant column and table */
     SET @dynamic_sql = "UPDATE `auto_increment_health_evaluation` SET `min_evaluated` = ?, `max_evaluated` = ?, `record_count_evaluated` = ? WHERE (`table_schema` = ?) AND (`table_name` = ?) AND (`column_name` = ?);";
@@ -261,14 +277,20 @@ BEGIN
     DEALLOCATE PREPARE complete_sql;
 END//
 DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_3_Calculate`//
-CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_3_Calculate`()
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_3_Calculate`(IN p_InScope_Database VARCHAR(64))
     NOT DETERMINISTIC 
     MODIFIES SQL DATA 
     SQL SECURITY DEFINER 
     COMMENT 'Calculates few columns for MySQL older than 5.7.6' 
 BEGIN
-    IF ((`fn_MySQLforkDistribution`() = 'MySQL') AND (`fn_MySQLversionNumeric`() < 50706)) OR ((`fn_MySQLforkDistribution`() = 'mariadb.org') AND (`fn_MySQLversionNumeric`() < 100201)) THEN
-        UPDATE `auto_increment_health_evaluation` SET 
+    DECLARE v_MySQL_Distribution VARCHAR(254);
+    DECLARE v_MySQL_Version_Numeric MEDIUMINT(8) UNSIGNED;
+    SELECT `fn_MySQLforkDistribution`() INTO v_MySQL_Distribution;
+    SELECT `fn_MySQLversionNumeric`() INTO v_MySQL_Version_Numeric;
+    IF ((v_MySQL_Distribution = 'MySQL') AND (v_MySQL_Version_Numeric < 50706)) OR ((v_MySQL_Distribution = 'mariadb.org') AND (v_MySQL_Version_Numeric < 100201)) THEN
+        UPDATE
+            `auto_increment_health_evaluation`
+        SET 
             `calculated_filling_value` = (
                 CASE 
                     WHEN (`record_count_evaluated` IS NULL) THEN NULL 
@@ -292,8 +314,11 @@ BEGIN
                     WHEN (`record_count_evaluated` is null) THEN null 
                     WHEN (`record_count_evaluated` = 0) THEN 0 
                     ELSE ((`auto_increment_next_value` - (CASE WHEN (`auto_increment_next_value` = `max_evaluated`) THEN 0 ELSE 1 END)) - `max_evaluated`)
-            END);
-        UPDATE `auto_increment_health_evaluation` SET 
+            END)
+        WHERE (`table_schema` LIKE p_InScope_Database);
+        UPDATE
+            `auto_increment_health_evaluation`
+        SET 
             `calculated_filling_percentage` = (
                 CASE 
                     WHEN (`record_count_evaluated` IS NULL) THEN NULL 
@@ -318,8 +343,11 @@ BEGIN
                     WHEN (`record_count_evaluated` IS NULL) THEN null 
                     WHEN (`record_count_evaluated` = 0) THEN 100 
                     ELSE ROUND(((1 - (`calculated_end_gap_value` / IFNULL(NULLIF((`max_possible` - `min_possible`),0),1)  )) * 100),9)
-            END);
-        UPDATE `auto_increment_health_evaluation` SET 
+            END)
+        WHERE (`table_schema` LIKE p_InScope_Database);
+        UPDATE
+            `auto_increment_health_evaluation`
+        SET 
             `calculated_filling_quality_level` = (
                 CASE 
                     WHEN (`calculated_filling_percentage` IS NOT NULL) THEN (
@@ -376,8 +404,17 @@ BEGIN
                             ELSE 'disaster' 
                         END) 
                     ELSE NULL
-            END);
+            END)
+        WHERE (`table_schema` LIKE p_InScope_Database);
     END IF;
+END//
+DROP PROCEDURE IF EXISTS `pr_Auto_Increment_Evaluation_ALL`//
+CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Auto_Increment_Evaluation_ALL`(IN p_InScope_Database VARCHAR(64))
+    MODIFIES SQL DATA
+BEGIN
+    CALL `pr_Auto_Increment_Evaluation_1_Capture`(p_InScope_Database);
+    CALL `pr_Auto_Increment_Evaluation_2_Health`(p_InScope_Database);
+    CALL `pr_Auto_Increment_Evaluation_3_Calculate`(p_InScope_Database);
 END//
 DROP EVENT IF EXISTS `event_AutoIncrementHealthEvaluation`//
 CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` EVENT `event_AutoIncrementHealthEvaluation` 
@@ -386,13 +423,14 @@ STARTS '2016-09-15 00:10:00'
 ON COMPLETION PRESERVE 
 ENABLE DO 
 BEGIN
-    CALL `pr_Auto_Increment_Evaluation_1_Capture`();
-    CALL `pr_Auto_Increment_Evaluation_2_Health`();
-    CALL `pr_Auto_Increment_Evaluation_3_Calculate`();
+    CALL `pr_Auto_Increment_Evaluation_ALL`('%');
 END//
-DELIMITER ;
-/* Query to help you assess how much time running the Auto Increment Health Evaluation takes */
-/*
+CREATE OR REPLACE 
+    ALGORITHM = UNDEFINED
+    DEFINER=`mysql_monitoring_user`@`127.0.0.1`
+    SQL SECURITY DEFINER
+    COMMENT 'Duration measurement of Auto Increment Health Evaluation'
+VIEW `view_auto_increment_evaluation_duration_overall` AS
 SELECT
 	MIN(`evaluation_timestamp_added`) AS StartingTime,
     TIMEDIFF(MAX(`evaluation_timestamp_added`), MIN(`evaluation_timestamp_added`)) AS Added_Duration,
@@ -402,7 +440,8 @@ SELECT
     MAX(`evaluation_timestamp_completed`) AS CompletionTime
 FROM
     `auto_increment_health_evaluation`;
-*/
+//
+DELIMITER ;
 /* Query to resent the AI value */
 /* 
     ALTER TABLE `table_name_targeted_for_AI_reset` AUTO_INCREMENT = 1; 
