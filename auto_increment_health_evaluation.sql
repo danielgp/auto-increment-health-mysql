@@ -177,7 +177,7 @@ BEGIN
     DECLARE v_MySQL_Distribution VARCHAR(254);
     DECLARE v_MySQL_Version_Numeric MEDIUMINT(8) UNSIGNED;
     /* Ensure we're starting in an empty space */
-    DELETE FROM `auto_increment_health_evaluation` WHERE (`table_schema` IS NOT NULL);
+    DELETE FROM `auto_increment_health_evaluation` WHERE (`table_schema` IS NOT NULL) AND (`C`.`TABLE_SCHEMA` LIKE p_InScope_Database) AND (`C`.`TABLE_NAME` LIKE p_InScope_Table);
     /* Capture all AI column from all databases on current MySQL server */
     INSERT INTO `auto_increment_health_evaluation` (`table_schema`, `table_name`, `column_name`, `data_type`, `column_type`, `auto_increment_next_value`)
         SELECT 
