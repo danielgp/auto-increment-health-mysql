@@ -23,6 +23,7 @@
  * SOFTWARE.
  *
  */
+GRANT ALTER, UPDATE ON *.* TO 'mysql_monitoring_user'@'127.0.0.1';
 DROP TABLE IF EXISTS `auto_increment_gap_elimination_content`;
 CREATE TABLE `auto_increment_gap_elimination_content` (
   `table_schema` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
