@@ -61,6 +61,8 @@ CREATE TABLE `auto_increment_gap_elimination_log` (
   `gap_elimination_timestamp_completed` datetime(6) DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP(6),
   KEY `K_aigel_SchemaTableColumn` (`table_schema`,`table_name`,`column_name`, `gap_elimination_timestamp_added`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=COMPACT;
+/* Support for Duration in-place calculate (requires MySQL 5.6.7+ or MariaDB 5.2.3+) */
+ALTER TABLE `mysql_monitoring_schema`.`auto_increment_gap_elimination_log` ADD COLUMN `gap_eliminiation_duration` TIME(6) GENERATED ALWAYS AS (CASE WHEN `gap_elimination_timestamp_completed` IS NULL THEN NULL ELSE  TIMEDIFF(`gap_elimination_timestamp_completed`, `gap_elimination_timestamp_added`) END) STORED AFTER `gap_elimination_timestamp_completed`;
 DELIMITER //
 DROP PROCEDURE IF EXISTS `pr_Eliminate_Auto_Increment_Gap_4_Tinyint_Signed`//
 CREATE DEFINER=`mysql_monitoring_user`@`127.0.0.1` PROCEDURE `pr_Eliminate_Auto_Increment_Gap_4_Tinyint_Signed`(IN p_InScope_Database VARCHAR(200), IN p_InScope_Table VARCHAR(64), IN p_InScope_Column VARCHAR(64))
