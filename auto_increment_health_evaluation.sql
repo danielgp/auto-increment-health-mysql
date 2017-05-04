@@ -55,7 +55,7 @@ USE `mysql_monitoring_schema`;
 DROP USER /*!50708 IF EXISTS */ 'mysql_monitoring'@'127.0.0.1';
 DROP USER /*!50708 IF EXISTS */ 'mysql_monitoring_user'@'127.0.0.1';
 FLUSH PRIVILEGES;
-CREATE USER 'mysql_monitoring_user'@'127.0.0.1' /*!50706 REQUIRE NONE PASSWORD EXPIRE DEFAULT ACCOUNT UNLOCK */;
+CREATE USER 'mysql_monitoring_user'@'127.0.0.1' /*!50706 REQUIRE NONE PASSWORD EXPIRE DEFAULT */;
 SET PASSWORD FOR 'mysql_monitoring_user'@'127.0.0.1' = PASSWORD('ReplaceMeWithStrongerCombination');
 GRANT SELECT, EXECUTE ON *.* TO 'mysql_monitoring_user'@'127.0.0.1';
 GRANT INSERT, UPDATE, DELETE, EVENT ON `mysql_monitoring_schema`.* TO 'mysql_monitoring_user'@'127.0.0.1';
@@ -177,7 +177,7 @@ BEGIN
     DECLARE v_MySQL_Distribution VARCHAR(254);
     DECLARE v_MySQL_Version_Numeric MEDIUMINT(8) UNSIGNED;
     /* Ensure we're starting in an empty space */
-    DELETE FROM `auto_increment_health_evaluation` WHERE (`table_schema` IS NOT NULL) AND (`C`.`TABLE_SCHEMA` LIKE p_InScope_Database) AND (`C`.`TABLE_NAME` LIKE p_InScope_Table);
+    DELETE FROM `auto_increment_health_evaluation` WHERE (`table_schema` IS NOT NULL) AND (`table_schema` LIKE p_InScope_Database) AND (`table_name` LIKE p_InScope_Table);
     /* Capture all AI column from all databases on current MySQL server */
     INSERT INTO `auto_increment_health_evaluation` (`table_schema`, `table_name`, `column_name`, `data_type`, `column_type`, `auto_increment_next_value`)
         SELECT 
@@ -441,7 +441,6 @@ CREATE OR REPLACE
     ALGORITHM = UNDEFINED
     DEFINER=`mysql_monitoring_user`@`127.0.0.1`
     SQL SECURITY DEFINER
-    COMMENT 'Duration measurement of Auto Increment Health Evaluation'
 VIEW `view_auto_increment_evaluation_duration_overall` AS
 SELECT
 	MIN(`evaluation_timestamp_added`) AS StartingTime,
