@@ -15,7 +15,7 @@ Current script has been tested on following MySQL flavours:
 - Oracle MySQL 5.7.15 (on 14.09.2016)
 - Oracle MySQL 5.7.16 (on 07.11.2016)
 - Oracle MySQL 8.0.0-dmr (on 15.09.2016)
-- Oracle MySQL 8.0.11 (on 08.07.2016)
+- Oracle MySQL 8.0.11 (on 08.07.2018)
 - MariaDB.org 5.5.52 (on 19.09.2016, different script created due to big DDL differences, see "MySQL_51x-55x" folder)
 - MariaDB.org 10.0.27 (on 19.09.2016)
 - MariaDB.org 10.1.17 (on 19.09.2016)
