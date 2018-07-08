@@ -2,7 +2,7 @@
  *
  * The MIT License (MIT)
  *
- * Copyright (c) 2017 Daniel Popiniuc
+ * Copyright (c) 2017 - 2018 Daniel Popiniuc
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -55,8 +55,7 @@ USE `mysql_monitoring_schema`;
 DROP USER /*!50708 IF EXISTS */ 'mysql_monitoring'@'127.0.0.1';
 DROP USER /*!50708 IF EXISTS */ 'mysql_monitoring_user'@'127.0.0.1';
 FLUSH PRIVILEGES;
-CREATE USER 'mysql_monitoring_user'@'127.0.0.1' /*!50706 REQUIRE NONE PASSWORD EXPIRE DEFAULT */;
-SET PASSWORD FOR 'mysql_monitoring_user'@'127.0.0.1' = PASSWORD('ReplaceMeWithStrongerCombination');
+CREATE USER IF NOT EXISTS 'mysql_monitoring_user'@'127.0.0.1' IDENTIFIED WITH 'mysql_native_password' BY 'ReplaceMeWithStrongerCombination' PASSWORD EXPIRE NEVER;
 GRANT SELECT, EXECUTE ON *.* TO 'mysql_monitoring_user'@'127.0.0.1';
 GRANT INSERT, UPDATE, DELETE, EVENT ON `mysql_monitoring_schema`.* TO 'mysql_monitoring_user'@'127.0.0.1';
 FLUSH PRIVILEGES;
